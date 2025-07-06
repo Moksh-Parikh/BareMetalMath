@@ -72,12 +72,38 @@ float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominato
         return 1;
     }
 
-    /* int jUpperBound, iUpperBound; */
+    // if the last digit of the decimal is negative,
+    // the only way to represent it will be
+    // decimal / 10 ^ number of digits
+    *denominator = 1000000;
+    uint32_t comparison = decimal * (*denominator);
+
+    while (comparison % 10 == 0) {
+        comparison /= 10;
+        *denominator /= 10;
+    }
+    
+    if (comparison % 2 > 0) {
+        while (comparison % 5 == 0) {
+            comparison /= 5;
+            *denominator /= 5;
+        }
+
+        *numerator = comparison;
+        return 1;
+    }
+    
+    snprintf(buffer, 100, "%lu\r\n",
+        *denominator
+    );
+
+    printString(buffer);
 
     uint32_t decimalWholeNumber = (uint32_t)decimal;
 
     for (uint32_t i = decimalWholeNumber; i < 100000; i++) {
-        for (uint32_t j = 1; j < (i / decimal) + 1 /* account for rounding error */; j++) {
+        /* account for rounding error */
+        for (uint32_t j = 1; j < (i / decimal) + 1 ; j++) {
             if (j == i) { continue; }
             /* snprintf(buffer, 100, "fraction %lu / %lu\r\n", */
             /*     i, j */
@@ -119,6 +145,7 @@ float exponent(float number, int power) {
 float calculatePercent(float numerator, float denominator) {
     return (100 * numerator) / denominator;
 }
+
 
 // Uses Newton's method
 //      https://gmplib.org/manual/Nth-Root-Algorithm
@@ -215,7 +242,7 @@ int main(void) {
     float tangent = CORDIC(1.3, &cosine, &sine);
 
     uint32_t numerator, denominator;
-    if (!calculateFraction(2.674, &numerator, &denominator)) {return 1;}
+    if (!calculateFraction(2.675, &numerator, &denominator)) {return 1;}
 
     snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
              "20th root of 9: %f\r\n", 
