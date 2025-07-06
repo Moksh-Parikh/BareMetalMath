@@ -9,7 +9,9 @@
 
 float exponent(float number, int power);
 float calculatePercent(float numerator, float denominator);
-float squareRoot(float square, int accuracy);
+float radical(float radicand, int index, int accuracy);
+float CORDIC(float alpha, float* sin, float* cos);
+
 
 // TODO: add support for fractional indices
 float exponent(float number, int power) {
@@ -19,6 +21,9 @@ float exponent(float number, int power) {
     else if (power < 0) {
         returnVal = 1 / exponent(number, power * -1);
     }
+    /* else if (fabsf(roundf(power) ) <= 0.0001f) { */
+    /*     returnVal = */ 
+    /* } */
 
     for (int i = 0; i < power - 1; i++) {
         returnVal *= number;
@@ -27,45 +32,36 @@ float exponent(float number, int power) {
     return returnVal;
 }
 
+
 float calculatePercent(float numerator, float denominator) {
     return (100 * numerator) / denominator;
 }
 
-
-// uses Heron's Method to calculate the square root
-// https://gregorygundersen.com/blog/2023/02/01/estimating-square-roots/
-float squareRoot(float square, int accuracy) {
+// Uses Newton's method
+//      https://gmplib.org/manual/Nth-Root-Algorithm
+float radical(float radicand, int index, int accuracy) {
     float guessArray[accuracy];
 
-    for (int j = 1; j < square; j++) {
-        float iteratorSquared = exponent(j, 2);
+    for (int j = 1; j < radicand; j++) {
+        float iteratorSquared = exponent(j, index);
         
-        if (iteratorSquared == square) { return (float)j; }
+        if (iteratorSquared == radicand) { return (float)j; }
         
-        if ( calculatePercent(iteratorSquared, square) > 97.0) {// || iteratorSquared - square > -3 ) {
+        if ( calculatePercent(iteratorSquared, radicand) > 97.0) {// || iteratorSquared - square > -3 ) {
             guessArray[0] = (float)j;
             break;
         }
     }
 
     for(int i = 1; i < accuracy; i++) {
-        float correctionFactor = square / guessArray[i - 1];
-
-        guessArray[i] = (guessArray[i - 1] + correctionFactor) / 2;
+        guessArray[i] = 
+            (radicand / exponent(guessArray[i - 1], (index - 1))
+            + (guessArray[i - 1] * (index - 1)) ) / index;
     }
 
     return guessArray[accuracy - 1];
 }
 
-/*
-    * x = Xin * cos(angle) - Yin * sin(angle)
-    * y = Xin * sin(angle) + Yin * cos(angle)
-    * if we set Xin to 1 and Yin to 0,
-    * then the equations become:
-    * x = cos(angle)
-    * y = sin(angle)
-    *
-*/
 
 // translated from Python implementation at:
 //      https://en.wikipedia.org/wiki/CORDIC
@@ -79,6 +75,10 @@ float CORDIC(float alpha, float* sin, float* cos) {
     float x = 1.0;
     float y = 0.0;
     float exponent2to1 = 1;
+    
+    long exp;
+    long temp2;
+    long bitMask = 0x7f800000; // isolates the 1st to 9th bits
 
     int rotationDirection;
 
@@ -88,6 +88,16 @@ float CORDIC(float alpha, float* sin, float* cos) {
     /* printString(buffer); */
 
     for (int i = 0; i < 16; i++) {
+        exp = * (long *) &exponent2to1;
+        temp2 = * (long *) &exponent2to1;
+        
+        exp &= bitMask;
+        exp -= 1;
+        
+        temp2 &= 0x807fffff; // clear the 1st to 9th bits
+        temp2 |= exp; // OR on the divided exponent
+        exponent2to1 = * (float *) &temp2;
+
         rotationDirection = theta < alpha ? 1 : -1;
         theta += rotationDirection * thetaTable[i];
 
@@ -97,10 +107,8 @@ float CORDIC(float alpha, float* sin, float* cos) {
         x = tempX;
         y = tempY;
 
-        /* snprintf(buffer, 500, "\e[38:5:23mSigma: %d, theta: %f\r\n\e[38:5:225mxOut: %f, yOut: %f\r\n\e[38:5:130mtan(): %f\r\n", rotationDirection, theta, x, y, y/x); */
+        /* snprintf(buffer, 500, "\e[38:5:23mExponent: %f\r\n", exponent2to1); */
         /* printString(buffer); */
-
-        exponent2to1 /= 2;
     }
     
     x *= correctionFactor;
@@ -119,14 +127,13 @@ int main(void) {
     initUSART();
     printString("Initialised!\r\n");
  
-    /* for (int i = 0; i <= 90; i++) { */
-        char buffer[100];
-        float cosine, sine;
-        float tangent = CORDIC(1.570796, &cosine, &sine); // squareRoot(255, 6);
-        snprintf(buffer, 100, "Estimated sine, cosine and tangent of %d: %f, %f, %f\r\n", 1.570796, sine, cosine, tangent);
+    char buffer[500];
+    float cosine, sine;
+    float tangent = CORDIC(1.3, &cosine, &sine);
 
-        printString(buffer);
-    /* } */
+    snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n20th root of 9: %f\r\n", 1.3, sine, cosine, tangent, radical(9, 20, 16));
+
+    printString(buffer);
 
     return(0);
 }
