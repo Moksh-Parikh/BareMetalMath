@@ -12,6 +12,89 @@ float calculatePercent(float numerator, float denominator);
 float radical(float radicand, int index, int accuracy);
 float CORDIC(float alpha, float* sin, float* cos);
 
+// Euclid's algorithm
+/* uint32_t findGCD(uint32_t num1, uint32_t num2) { */
+/*     while (num1 != num2) { */
+/*         num1 /= num2; */
+/*         num2 = num1 % num2; */
+
+/*     } */
+/*     return num1; */
+/* } */
+
+// Euclid's algorithm
+// stolen from:
+//      https://www.geeksforgeeks.org/dsa/euclidean-algorithms-basic-and-extended/#basic-euclidean-algorithm-for-gcd
+uint32_t findGCD(uint32_t a, uint32_t b) {
+    if (a == 0) { return b; }
+    return findGCD(b % a, a);
+}
+
+
+float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominator) {
+    char buffer[100];
+
+    if (decimal == 0.0) { 
+        *numerator = 0;
+        *denominator = 0;
+
+        return 0;
+    }
+    else if (decimal == 1.0) {
+        *numerator = 1;
+        *denominator = 1;
+
+        return 1;
+    }
+    else if (decimal < 1.0) {
+        float comparison = decimal;
+        uint32_t digits;
+        for (digits = 1; digits <= 6; digits++) {
+            comparison *= 10;
+
+            snprintf(buffer, 100, "fraction %f / %lu\r\n",
+                comparison, (uint32_t)comparison
+            );
+
+            printString(buffer);
+            if (comparison - (uint32_t)comparison <= 0) {
+                break;
+            }
+        }
+        *numerator = comparison;
+        *denominator = exponent(10, digits - 1);
+        
+        uint32_t gcd = findGCD(*numerator, *denominator);
+
+        *numerator /= gcd;
+        *denominator /= gcd;
+
+        return 1;
+    }
+
+    /* int jUpperBound, iUpperBound; */
+
+    uint32_t decimalWholeNumber = (uint32_t)decimal;
+
+    for (uint32_t i = decimalWholeNumber; i < 100000; i++) {
+        for (uint32_t j = 1; j < (i / decimal) + 1 /* account for rounding error */; j++) {
+            if (j == i) { continue; }
+            /* snprintf(buffer, 100, "fraction %lu / %lu\r\n", */
+            /*     i, j */
+            /* ); */
+
+            /* printString(buffer); */
+            if ((float)i / (float)j == decimal) {
+                *numerator = i;
+                *denominator = j;
+                return 1;
+            }
+        }
+    }
+
+    return 1;
+}
+
 
 // TODO: add support for fractional indices
 float exponent(float number, int power) {
@@ -131,7 +214,19 @@ int main(void) {
     float cosine, sine;
     float tangent = CORDIC(1.3, &cosine, &sine);
 
-    snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n20th root of 9: %f\r\n", 1.3, sine, cosine, tangent, radical(9, 20, 16));
+    uint32_t numerator, denominator;
+    if (!calculateFraction(2.674, &numerator, &denominator)) {return 1;}
+
+    snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
+             "20th root of 9: %f\r\n", 
+             1.3, sine, cosine, tangent, radical(9, 20, 16)
+             );
+
+    printString(buffer);
+    
+    snprintf(buffer, 500, "4.6 as fraction %lu / %lu, %f\r\n",
+             numerator, denominator, 23.0 / 5.0
+    );
 
     printString(buffer);
 
