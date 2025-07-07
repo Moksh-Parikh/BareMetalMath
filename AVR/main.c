@@ -7,20 +7,14 @@
 #include "headers/USART.h"
 #include "headers/pinDefines.h"
 
+
+uint32_t findGCD(uint32_t a, uint32_t b);
+float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominator);
 float exponent(float number, int power);
 float calculatePercent(float numerator, float denominator);
 float radical(float radicand, int index, int accuracy);
 float CORDIC(float alpha, float* sin, float* cos);
 
-// Euclid's algorithm
-/* uint32_t findGCD(uint32_t num1, uint32_t num2) { */
-/*     while (num1 != num2) { */
-/*         num1 /= num2; */
-/*         num2 = num1 % num2; */
-
-/*     } */
-/*     return num1; */
-/* } */
 
 // Euclid's algorithm
 // stolen from:
@@ -78,7 +72,6 @@ float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominato
 }
 
 
-// TODO: add support for fractional indices
 float exponent(float number, int power) {
     float returnVal = number;
     
@@ -86,9 +79,6 @@ float exponent(float number, int power) {
     else if (power < 0) {
         returnVal = 1 / exponent(number, power * -1);
     }
-    /* else if (fabsf(roundf(power) ) <= 0.0001f) { */
-    /*     returnVal = */ 
-    /* } */
 
     for (int i = 0; i < power - 1; i++) {
         returnVal *= number;
@@ -113,7 +103,7 @@ float radical(float radicand, int index, int accuracy) {
         
         if (iteratorSquared == radicand) { return (float)j; }
         
-        if ( calculatePercent(iteratorSquared, radicand) > 97.0) {// || iteratorSquared - square > -3 ) {
+        if ( calculatePercent(iteratorSquared, radicand) > 97.0) {
             guessArray[0] = (float)j;
             break;
         }
@@ -134,8 +124,6 @@ float radical(float radicand, int index, int accuracy) {
 float CORDIC(float alpha, float* sin, float* cos) {
     float thetaTable[16] = {0.785398, 0.463647, 0.244978, 0.124354, 0.062418, 0.031239, 0.015623, 0.007812, 0.003906, 0.001953, 0.000976, 0.000488, 0.000244, 0.000122, 0.000061, 0.000030};
 
-    /* char buffer[500]; */
-
     float correctionFactor = 0.607259;
     float theta = 0.0;
     float x = 1.0;
@@ -144,14 +132,12 @@ float CORDIC(float alpha, float* sin, float* cos) {
     
     long exp;
     long temp2;
-    long bitMask = 0x7f800000; // isolates the 1st to 9th bits
+    // isolates the 1st to 9th bits, the exponent
+    long bitMask = 0x7f800000;
 
     int rotationDirection;
 
     float tempX, tempY; 
-
-    /* snprintf(buffer, 500, "%f\r\n", correctionFactor); */
-    /* printString(buffer); */
 
     for (int i = 0; i < 16; i++) {
         exp = * (long *) &exponent2to1;
@@ -172,16 +158,10 @@ float CORDIC(float alpha, float* sin, float* cos) {
 
         x = tempX;
         y = tempY;
-
-        /* snprintf(buffer, 500, "\e[38:5:23mExponent: %f\r\n", exponent2to1); */
-        /* printString(buffer); */
     }
     
     x *= correctionFactor;
     y *= correctionFactor;
-
-    /* snprintf(buffer, 500, "%f / %f = %f\r\n", x, y, y/x); */
-    /* printString(buffer); */
     
     *cos = x;
     *sin = y;
