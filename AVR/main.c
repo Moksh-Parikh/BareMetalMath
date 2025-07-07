@@ -200,8 +200,9 @@ int main(void) {
     float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
 
     snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
-             "20th root of 9: %f\r\n", 
-             1.3, sine, cosine, tangent, radical(9, 20, 16)
+             "20th root of 9: %f\r\n"
+             "GCD of 5 and 2: %ld\r\n",
+             1.3, sine, cosine, tangent, radical(9, 20, 16), findGCD(5, 2)
              );
     
     printString(buffer);
