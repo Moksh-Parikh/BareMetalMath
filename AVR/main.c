@@ -32,8 +32,6 @@ uint32_t findGCD(uint32_t a, uint32_t b) {
 
 
 float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominator) {
-    char buffer[100];
-
     if (decimal == 0.0) { 
         *numerator = 0;
         *denominator = 0;
@@ -46,35 +44,13 @@ float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominato
 
         return 1;
     }
-    else if (decimal < 1.0) {
-        float comparison = decimal;
-        uint32_t digits;
-        for (digits = 1; digits <= 6; digits++) {
-            comparison *= 10;
-
-            snprintf(buffer, 100, "fraction %f / %lu\r\n",
-                comparison, (uint32_t)comparison
-            );
-
-            printString(buffer);
-            if (comparison - (uint32_t)comparison <= 0) {
-                break;
-            }
-        }
-        *numerator = comparison;
-        *denominator = exponent(10, digits - 1);
-        
-        uint32_t gcd = findGCD(*numerator, *denominator);
-
-        *numerator /= gcd;
-        *denominator /= gcd;
-
-        return 1;
+    else if (decimal - (int)decimal == 0) {
+        *numerator = (int)decimal;
+        *denominator = 1;
     }
 
-    // if the last digit of the decimal is negative,
-    // the only way to represent it will be
-    // decimal / 10 ^ number of digits
+    // floating points only have 7 digits of precision max,
+    // so we multiply by 10 ^ 6 to get an integer
     *denominator = 1000000;
     uint32_t comparison = decimal * (*denominator);
 
@@ -92,31 +68,11 @@ float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominato
         *numerator = comparison;
         return 1;
     }
-    
-    snprintf(buffer, 100, "%lu\r\n",
-        *denominator
-    );
 
-    printString(buffer);
+    uint32_t gcd = findGCD(comparison, *denominator);
 
-    uint32_t decimalWholeNumber = (uint32_t)decimal;
-
-    for (uint32_t i = decimalWholeNumber; i < 100000; i++) {
-        /* account for rounding error */
-        for (uint32_t j = 1; j < (i / decimal) + 1 ; j++) {
-            if (j == i) { continue; }
-            /* snprintf(buffer, 100, "fraction %lu / %lu\r\n", */
-            /*     i, j */
-            /* ); */
-
-            /* printString(buffer); */
-            if ((float)i / (float)j == decimal) {
-                *numerator = i;
-                *denominator = j;
-                return 1;
-            }
-        }
-    }
+    *numerator = comparison / gcd;
+    *denominator /= gcd;
 
     return 1;
 }
@@ -241,21 +197,32 @@ int main(void) {
     float cosine, sine;
     float tangent = CORDIC(1.3, &cosine, &sine);
 
-    uint32_t numerator, denominator;
-    if (!calculateFraction(2.675, &numerator, &denominator)) {return 1;}
+    float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
 
     snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
              "20th root of 9: %f\r\n", 
              1.3, sine, cosine, tangent, radical(9, 20, 16)
              );
-
+    
     printString(buffer);
     
-    snprintf(buffer, 500, "4.6 as fraction %lu / %lu, %f\r\n",
-             numerator, denominator, 23.0 / 5.0
-    );
+    for (int i = 0; i < 7; i++) {
+        uint32_t numerator, denominator;
+        
+        if (!calculateFraction(test[i],
+                               &numerator,
+                               &denominator
+                               )) {
+            return 1;
+        }
 
-    printString(buffer);
+        
+        snprintf(buffer, 500, "%f as fraction %lu / %lu\r\n",
+                 test[i], numerator, denominator
+        );
+        
+        printString(buffer);
+    }
 
     return(0);
 }
