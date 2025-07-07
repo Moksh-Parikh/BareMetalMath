@@ -7,6 +7,11 @@
 #include "headers/USART.h"
 #include "headers/pinDefines.h"
 
+typedef struct {
+    uint8_t decimalPointLocation;
+    uint32_t number;
+} myFloat;
+
 
 uint32_t findGCD(uint32_t a, uint32_t b);
 float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominator);
@@ -14,6 +19,114 @@ float exponent(float number, int power);
 float calculatePercent(float numerator, float denominator);
 float radical(float radicand, int index, int accuracy);
 float CORDIC(float alpha, float* sin, float* cos);
+
+
+int uart_put_char(char c, FILE *stream) { 
+	if (c == '\n') uart_put_char('\r', stream);
+   	loop_until_bit_is_set(UCSR0A, UDRE0); // wait for UDR to be clear 
+   	UDR0 = c;
+    return 0; 
+}
+
+
+void separateFloatComponents(myFloat input, uint32_t* integer, uint32_t* decimal) {
+    *integer = input.number >> input.decimalPointLocation;
+    
+    // apply a bitmask to only read the fractional part
+    *decimal = input.number & (0xffffffff >> (32 - input.decimalPointLocation));
+
+    char buffer[100];
+    snprintf(buffer, 100, "separateFloatComponents %ld.%ld\r\n", *integer, *decimal);
+    printString(buffer);
+}
+
+
+void printMyFloat(myFloat in) {
+    uint32_t integer, decimal;
+    separateFloatComponents(in, &integer, &decimal);
+
+    printf("%ld.%ld", integer, decimal);
+}
+
+
+myFloat multiply(myFloat number1, myFloat number2) {
+    uint32_t integer1, decimal1, integer2, decimal2;
+    uint32_t temp1, temp2;
+
+    myFloat output;
+
+    separateFloatComponents(number1, &integer1, &decimal1);
+    separateFloatComponents(number2, &integer2, &decimal2);
+
+    temp1 = integer1 * integer2;
+    printf("%ld\n", temp1);
+
+    temp2 = decimal1 * decimal2;
+    printf("%ld\n", temp2);
+
+    temp2 += decimal1 * integer2;
+    printf("%ld\n", temp2);
+
+    temp2 += integer1 * decimal2;
+    printf("%ld\n", temp2);
+
+    output.decimalPointLocation = number1.decimalPointLocation < number2.decimalPointLocation
+                                  ? number2.decimalPointLocation :
+                                  number1.decimalPointLocation;
+
+    temp1 <<= output.decimalPointLocation;
+    temp1 |= temp2;
+    output.number = temp1;
+    
+    printf("l82\n");
+    printMyFloat(output);
+    printf("\n");
+
+    return output;
+}
+
+
+myFloat divide(uint32_t dividend, uint32_t divisor) {
+    myFloat quotient = {0, 0};
+    uint32_t temp = dividend % divisor;
+    uint32_t temp2 = dividend % divisor;
+
+    if (dividend == divisor) {
+        quotient.decimalPointLocation = 0;
+        quotient.number = 1;
+        
+        printf("%ld\n%ld / %ld = %ld\n", quotient.number, dividend, divisor, dividend / divisor);
+        return quotient;
+    }
+
+    /* if (temp == 0) { */
+    /* } */
+    
+    /* temp = dividend % divisor; */
+    
+    uint32_t remainder = 0;
+   
+    int i = 1;
+    char buffer[100];
+
+    while (remainder) {
+        temp *= 10;
+        remainder = temp % dividend;
+
+        i++;
+    }
+
+    // TODO: find alternative to the GCC builtin
+    quotient.decimalPointLocation = 32 - __builtin_clzl(temp2);
+
+    quotient.number = temp | ((dividend / divisor) << quotient.decimalPointLocation);
+
+    printf("%ld\n%ld / %ld = %ld, dcp = %d\n", quotient.number, dividend, divisor, dividend / divisor, quotient.decimalPointLocation);
+    printMyFloat(quotient);
+    printf("\n");
+
+    return quotient;
+}
 
 
 // Euclid's algorithm
@@ -171,22 +284,25 @@ float CORDIC(float alpha, float* sin, float* cos) {
 
 int main(void) {
     initUSART();
-    printString("Initialised!\r\n");
+
+    FILE mystdout = FDEV_SETUP_STREAM(uart_put_char, NULL, _FDEV_SETUP_WRITE);
+    stdout = &mystdout;
+
+    printf("Initialised!\n");
  
-    char buffer[500];
     float cosine, sine;
     float tangent = CORDIC(1.3, &cosine, &sine);
 
     float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
 
-    snprintf(buffer, 500, "Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
+    multiply( (myFloat){1, 327}, (myFloat){0, 10} );
+
+    printf("Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
              "20th root of 9: %f\r\n"
              "GCD of 5 and 2: %ld\r\n",
              1.3, sine, cosine, tangent, radical(9, 20, 16), findGCD(5, 2)
              );
-    
-    printString(buffer);
-    
+
     for (int i = 0; i < 7; i++) {
         uint32_t numerator, denominator;
         
@@ -198,11 +314,7 @@ int main(void) {
         }
 
         
-        snprintf(buffer, 500, "%f as fraction %lu / %lu\r\n",
-                 test[i], numerator, denominator
-        );
-        
-        printString(buffer);
+        printf("%f as fraction %lu / %lu\r\n", test[i], numerator, denominator);
     }
 
     return(0);
