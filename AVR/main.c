@@ -34,10 +34,6 @@ void separateFloatComponents(myFloat input, uint32_t* integer, uint32_t* decimal
     
     // apply a bitmask to only read the fractional part
     *decimal = input.number & (0xffffffff >> (32 - input.decimalPointLocation));
-
-    char buffer[100];
-    snprintf(buffer, 100, "separateFloatComponents %ld.%ld\r\n", *integer, *decimal);
-    printString(buffer);
 }
 
 
@@ -49,11 +45,73 @@ void printMyFloat(myFloat in) {
 }
 
 
+myFloat addition(myFloat number1, myFloat number2) {
+    printf("number1 dp: %d, number2 dp: %d\n", number1.decimalPointLocation, number2.decimalPointLocation);
+    printMyFloat(number1);
+    printf(", ");
+    printMyFloat(number2);
+    printf("\n");
+
+    if (number1.decimalPointLocation >= number2.decimalPointLocation) {
+        number2.number <<= number1.decimalPointLocation;
+        number2.decimalPointLocation = number1.decimalPointLocation;
+    }
+    else {
+        number1.number <<= (number2.decimalPointLocation - number1.decimalPointLocation);
+        number1.decimalPointLocation = number2.decimalPointLocation;
+    }
+
+    printf("After shift:\n\tnumber1 dp: %d, number2 dp: %d\n", number1.decimalPointLocation, number2.decimalPointLocation);
+    printMyFloat(number1);
+    printf(", ");
+    printMyFloat(number2);
+    printf("\n");
+
+    myFloat output;
+    uint32_t integer1, fraction1, integer2, fraction2;
+
+    separateFloatComponents(number1, &integer1, &fraction1);
+    separateFloatComponents(number2, &integer2, &fraction2);
+
+    fraction1 += fraction2;
+    integer1 += integer2;
+
+    output.decimalPointLocation = 32 - __builtin_clzl(fraction1);
+    output.number = fraction1 | (integer1 << output.decimalPointLocation);
+
+    printf("Fraction: %ld\nInteger: %ld\nWhole: %ld\nDP: %d\n", fraction1, integer1 << output.decimalPointLocation, output.number, output.decimalPointLocation);
+
+    printf("Output:\n");
+    printMyFloat(output);
+    printf("\n");
+
+    return output;
+}
+
+
+myFloat buildFloat(uint8_t decimalPlace, uint32_t inputNumber) {
+    myFloat output;
+    uint32_t fractional = inputNumber % (uint32_t)exponent(10, decimalPlace);
+
+    output.decimalPointLocation = 32 - __builtin_clzl(fractional);
+
+    output.number = (uint32_t)(inputNumber / exponent(10, decimalPlace)) << output.decimalPointLocation;
+    output.number |= fractional;
+
+    return output;
+}
+
+
 myFloat multiply(myFloat number1, myFloat number2) {
     uint32_t integer1, decimal1, integer2, decimal2;
     uint32_t temp1, temp2;
 
     myFloat output;
+
+    printMyFloat(number1);
+    printf("\n");
+    printMyFloat(number2);
+    printf("\n");
 
     separateFloatComponents(number1, &integer1, &decimal1);
     separateFloatComponents(number2, &integer2, &decimal2);
@@ -295,7 +353,7 @@ int main(void) {
 
     float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
 
-    multiply( (myFloat){1, 327}, (myFloat){0, 10} );
+    addition(buildFloat(1, 327), buildFloat(2, 32));
 
     printf("Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
              "20th root of 9: %f\r\n"
