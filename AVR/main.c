@@ -7,14 +7,27 @@
 #include "headers/USART.h"
 #include "headers/pinDefines.h"
 
+#define SCALEDINT(scale, number) ( (myFloat){scale, number} )
+
 typedef struct {
-    uint8_t decimalPointLocation;
+    uint16_t scaleAsExponent;
     uint32_t number;
 } myFloat;
 
 
+void separateFloatComponents(myFloat input, uint32_t* integer, uint32_t* decimal);
+void printMyFloat(myFloat in);
+uint32_t findMaxPlaceValue(uint32_t number, uint8_t* placeNumber);
+uint32_t getNumberToPlaceValue(uint32_t number, uint32_t maxPlaceValue);
+int getDigitAtPlaceValue(uint32_t value, int digitNumber);
+myFloat addition(myFloat number1, myFloat number2);
+myFloat subtraction(myFloat number1, myFloat number2);
+myFloat multiply(myFloat number1, myFloat number2);
+myFloat divide(myFloat number1, myFloat number2);
 uint32_t findGCD(uint32_t a, uint32_t b);
 float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominator);
+uint32_t exponentAsInt(uint32_t number, int power);
+uint32_t findMaxPlaceValue(uint32_t number, uint8_t* placeNumber);
 float exponent(float number, int power);
 float calculatePercent(float numerator, float denominator);
 float radical(float radicand, int index, int accuracy);
@@ -30,160 +43,132 @@ int uart_put_char(char c, FILE *stream) {
 
 
 void separateFloatComponents(myFloat input, uint32_t* integer, uint32_t* decimal) {
-    *integer = input.number >> input.decimalPointLocation;
+    *integer = input.number / exponentAsInt(10, input.scaleAsExponent);
     
-    // apply a bitmask to only read the fractional part
-    *decimal = input.number & (0xffffffff >> (32 - input.decimalPointLocation));
+    *decimal = input.number % exponentAsInt(10, input.scaleAsExponent);
 }
 
 
 void printMyFloat(myFloat in) {
     uint32_t integer, decimal;
+    uint8_t placeValue;
     separateFloatComponents(in, &integer, &decimal);
+    findMaxPlaceValue(decimal, &placeValue);
 
-    printf("%ld.%ld", integer, decimal);
+    printf("%ld.", integer);
+    
+    // start at -1 so if the scale is zero, no zeroes are printed
+    for (int i = -1; i < in.scaleAsExponent - placeValue; i++) {
+        printf("0");
+    }
+    printf("%ld", decimal);
+}
+
+
+uint32_t findMaxPlaceValue(uint32_t number, uint8_t* placeNumber) {
+    uint32_t maxPlaceValue = 0, exponentSum = 1;
+    int k = 1;
+
+    while (k < 10) {
+        exponentSum += (uint32_t)exponent(10, k);
+        maxPlaceValue += 9 * exponentSum;
+
+        if (number % (uint32_t)exponent(10, k) < 10) { break; }
+
+        k++;
+    }
+    *placeNumber = k + 1;
+
+    return maxPlaceValue;
+}
+
+
+uint32_t getNumberToPlaceValue(uint32_t number, uint32_t maxPlaceValue) {
+    int k = 1;
+    while (number < maxPlaceValue) {
+        number *= 10;
+        k++;
+    }
+    return number / 10;
+}
+
+
+int getDigitAtPlaceValue(uint32_t value, int digitNumber) {
+    return ( value / (uint32_t)exponent( 10, digitNumber - 1 ) ) % 10;
 }
 
 
 myFloat addition(myFloat number1, myFloat number2) {
-    printf("number1 dp: %d, number2 dp: %d\n", number1.decimalPointLocation, number2.decimalPointLocation);
-    printMyFloat(number1);
-    printf(", ");
-    printMyFloat(number2);
-    printf("\n");
+    myFloat sum;
 
-    if (number1.decimalPointLocation >= number2.decimalPointLocation) {
-        number2.number <<= number1.decimalPointLocation;
-        number2.decimalPointLocation = number1.decimalPointLocation;
+    if (number1.scaleAsExponent > number2.scaleAsExponent) {
+        number2.number *= exponentAsInt(10, (number1.scaleAsExponent - number2.scaleAsExponent));
     }
-    else {
-        number1.number <<= (number2.decimalPointLocation - number1.decimalPointLocation);
-        number1.decimalPointLocation = number2.decimalPointLocation;
+    else if (number1.scaleAsExponent < number2.scaleAsExponent) {
+        number1.number *= exponentAsInt(10, (number2.scaleAsExponent - number1.scaleAsExponent) );
+        number1.scaleAsExponent = number2.scaleAsExponent;
     }
 
-    printf("After shift:\n\tnumber1 dp: %d, number2 dp: %d\n", number1.decimalPointLocation, number2.decimalPointLocation);
-    printMyFloat(number1);
-    printf(", ");
-    printMyFloat(number2);
-    printf("\n");
+    sum.number = number1.number + number2.number;
+    sum.scaleAsExponent = number1.scaleAsExponent;
 
-    myFloat output;
-    uint32_t integer1, fraction1, integer2, fraction2;
-
-    separateFloatComponents(number1, &integer1, &fraction1);
-    separateFloatComponents(number2, &integer2, &fraction2);
-
-    fraction1 += fraction2;
-    integer1 += integer2;
-
-    output.decimalPointLocation = 32 - __builtin_clzl(fraction1);
-    output.number = fraction1 | (integer1 << output.decimalPointLocation);
-
-    printf("Fraction: %ld\nInteger: %ld\nWhole: %ld\nDP: %d\n", fraction1, integer1 << output.decimalPointLocation, output.number, output.decimalPointLocation);
-
-    printf("Output:\n");
-    printMyFloat(output);
-    printf("\n");
-
-    return output;
+    return sum;
 }
 
 
-myFloat buildFloat(uint8_t decimalPlace, uint32_t inputNumber) {
-    myFloat output;
-    uint32_t fractional = inputNumber % (uint32_t)exponent(10, decimalPlace);
+myFloat subtraction(myFloat number1, myFloat number2) {
+    myFloat sum;
 
-    output.decimalPointLocation = 32 - __builtin_clzl(fractional);
+    if (number1.scaleAsExponent > number2.scaleAsExponent) {
+        number2.number *= exponentAsInt(10, (number1.scaleAsExponent - number2.scaleAsExponent));
+    }
+    else if (number1.scaleAsExponent < number2.scaleAsExponent) {
+        number1.number *= exponentAsInt(10, (number2.scaleAsExponent - number1.scaleAsExponent) );
+        number1.scaleAsExponent = number2.scaleAsExponent;
+    }
 
-    output.number = (uint32_t)(inputNumber / exponent(10, decimalPlace)) << output.decimalPointLocation;
-    output.number |= fractional;
+    sum.number = number1.number - number2.number;
+    sum.scaleAsExponent = number1.scaleAsExponent;
 
-    return output;
+    return sum;
 }
 
 
 myFloat multiply(myFloat number1, myFloat number2) {
-    uint32_t integer1, decimal1, integer2, decimal2;
-    uint32_t temp1, temp2;
+    myFloat sum;
 
-    myFloat output;
+    if (number1.scaleAsExponent > number2.scaleAsExponent) {
+        /* number2.number *= exponentAsInt(10, (number1.scaleAsExponent - number2.scaleAsExponent)); */
+    }
+    else if (number1.scaleAsExponent < number2.scaleAsExponent) {
+        /* number1.number *= exponentAsInt(10, (number2.scaleAsExponent - number1.scaleAsExponent) ); */
+        number1.scaleAsExponent = number2.scaleAsExponent;
+    }
 
-    printMyFloat(number1);
-    printf("\n");
-    printMyFloat(number2);
-    printf("\n");
+    sum.number = number1.number * number2.number;
+    printf("HII: %ld, %d, %d\n", sum.number, number1.scaleAsExponent, number2.scaleAsExponent);
+    sum.scaleAsExponent = number1.scaleAsExponent;
 
-    separateFloatComponents(number1, &integer1, &decimal1);
-    separateFloatComponents(number2, &integer2, &decimal2);
-
-    temp1 = integer1 * integer2;
-    printf("%ld\n", temp1);
-
-    temp2 = decimal1 * decimal2;
-    printf("%ld\n", temp2);
-
-    temp2 += decimal1 * integer2;
-    printf("%ld\n", temp2);
-
-    temp2 += integer1 * decimal2;
-    printf("%ld\n", temp2);
-
-    output.decimalPointLocation = number1.decimalPointLocation < number2.decimalPointLocation
-                                  ? number2.decimalPointLocation :
-                                  number1.decimalPointLocation;
-
-    temp1 <<= output.decimalPointLocation;
-    temp1 |= temp2;
-    output.number = temp1;
-    
-    printf("l82\n");
-    printMyFloat(output);
-    printf("\n");
-
-    return output;
+    return sum;
 }
 
 
-myFloat divide(uint32_t dividend, uint32_t divisor) {
-    myFloat quotient = {0, 0};
-    uint32_t temp = dividend % divisor;
-    uint32_t temp2 = dividend % divisor;
+myFloat divide(myFloat number1, myFloat number2) {
+    myFloat sum;
 
-    if (dividend == divisor) {
-        quotient.decimalPointLocation = 0;
-        quotient.number = 1;
-        
-        printf("%ld\n%ld / %ld = %ld\n", quotient.number, dividend, divisor, dividend / divisor);
-        return quotient;
+    if (number1.scaleAsExponent > number2.scaleAsExponent) {
+        number2.number *= exponentAsInt(10, (number1.scaleAsExponent - number2.scaleAsExponent));
+    }
+    else if (number1.scaleAsExponent < number2.scaleAsExponent) {
+        number1.number *= exponentAsInt(10, (number2.scaleAsExponent - number1.scaleAsExponent) );
+        /* number1.scaleAsExponent = number2.scaleAsExponent; */
     }
 
-    /* if (temp == 0) { */
-    /* } */
-    
-    /* temp = dividend % divisor; */
-    
-    uint32_t remainder = 0;
-   
-    int i = 1;
-    char buffer[100];
+    sum.number = number1.number / number2.number;
 
-    while (remainder) {
-        temp *= 10;
-        remainder = temp % dividend;
+    sum.scaleAsExponent = number1.scaleAsExponent;
 
-        i++;
-    }
-
-    // TODO: find alternative to the GCC builtin
-    quotient.decimalPointLocation = 32 - __builtin_clzl(temp2);
-
-    quotient.number = temp | ((dividend / divisor) << quotient.decimalPointLocation);
-
-    printf("%ld\n%ld / %ld = %ld, dcp = %d\n", quotient.number, dividend, divisor, dividend / divisor, quotient.decimalPointLocation);
-    printMyFloat(quotient);
-    printf("\n");
-
-    return quotient;
+    return sum;
 }
 
 
@@ -240,6 +225,22 @@ float calculateFraction(float decimal, uint32_t* numerator, uint32_t* denominato
     *denominator /= gcd;
 
     return 1;
+}
+
+
+uint32_t exponentAsInt(uint32_t number, int power) {
+    uint32_t returnVal = number;
+    
+    if (power == 0) {return 1.0;}
+    /* else if (power < 0) { */
+    /*     returnVal = 1 / exponent(number, power * -1); */
+    /* } */
+
+    for (int i = 0; i < power - 1; i++) {
+        returnVal *= number;
+    }
+
+    return returnVal;
 }
 
 
@@ -353,7 +354,16 @@ int main(void) {
 
     float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
 
-    addition(buildFloat(1, 327), buildFloat(2, 32));
+    /* addition(buildFloat(1, 327), buildFloat(2, 32)); */
+    /* printMyFloat( subtraction( (myFloat){0, 67}, addition( (myFloat){1, 327}, (myFloat){0, 32} ) )); */
+    /* printMyFloat( multiply( (myFloat){1, 5}, (myFloat){0, 2} ) ); */
+    /* printf("\n"); */
+    /* printMyFloat( divide( (myFloat){0, 5}, (myFloat){1, 2} ) ); */
+    /* printf("\n"); */
+    printMyFloat(SCALEDINT(3, 25));
+    printf("\n");
+    printMyFloat(SCALEDINT(0, 25));
+    printf("\n");
 
     printf("Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
              "20th root of 9: %f\r\n"
