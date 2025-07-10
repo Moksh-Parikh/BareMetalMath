@@ -16,7 +16,7 @@ typedef struct {
 
 
 void separateFloatComponents(scaledInteger input, uint32_t* integer, uint32_t* decimal);
-void printMyFloat(scaledInteger in);
+void printScaledInteger(scaledInteger in);
 uint32_t findMaxPlaceValue(uint32_t number, uint8_t* placeNumber);
 uint32_t getNumberToPlaceValue(uint32_t number, uint32_t maxPlaceValue);
 int getDigitAtPlaceValue(uint32_t value, int digitNumber);
@@ -49,21 +49,13 @@ void separateFloatComponents(scaledInteger input, uint32_t* integer, uint32_t* d
 }
 
 
-void printMyFloat(scaledInteger in) {
+void printScaledInteger(scaledInteger in) {
     uint32_t integer, decimal;
     uint8_t placeValue;
     separateFloatComponents(in, &integer, &decimal);
     findMaxPlaceValue(decimal, &placeValue);
     
-    printf("%ld.", integer);
-    
-    if (in.scaleAsExponent) {
-        for (int i = 0; i < in.scaleAsExponent - placeValue; i++) {
-            printf("0");
-        }
-    }
-
-    printf("%ld", decimal);
+    printf("%ld * 10^-%d", in.number, in.scaleAsExponent);
 }
 
 
@@ -103,17 +95,28 @@ int getDigitAtPlaceValue(uint32_t value, int digitNumber) {
 scaledInteger addition(scaledInteger number1, scaledInteger number2) {
     scaledInteger sum;
 
+    if (number1.number == 0) {
+        return number2;
+    }
+    else if (number2.number == 0) {
+        return number1;
+    }
+
     if (number1.scaleAsExponent > number2.scaleAsExponent) {
         number2.number *= exponentAsInt(10, (number1.scaleAsExponent - number2.scaleAsExponent));
     }
     else if (number1.scaleAsExponent < number2.scaleAsExponent) {
         number1.number *= exponentAsInt(10, (number2.scaleAsExponent - number1.scaleAsExponent) );
-        number1.scaleAsExponent = number2.scaleAsExponent;
+        number1.scaleAsExponent = number2.scaleAsExponent - number1.scaleAsExponent;
     }
 
     sum.number = number1.number + number2.number;
     sum.scaleAsExponent = number1.scaleAsExponent;
-
+    
+    /* printf("sum: "); */
+    /* printScaledInteger(sum); */
+    /* printf("\n"); */
+    
     return sum;
 }
 
@@ -148,7 +151,7 @@ scaledInteger multiply(scaledInteger number1, scaledInteger number2) {
     }
 
     sum.number = number1.number * number2.number;
-    printf("HII: %ld, %d, %d\n", sum.number, number1.scaleAsExponent, number2.scaleAsExponent);
+    /* printf("HII: %ld, %d, %d\n", sum.number, number1.scaleAsExponent, number2.scaleAsExponent); */
     sum.scaleAsExponent = number1.scaleAsExponent + number2.scaleAsExponent;
 
     return sum;
@@ -158,8 +161,8 @@ scaledInteger multiply(scaledInteger number1, scaledInteger number2) {
 scaledInteger divide(scaledInteger number1, scaledInteger number2, uint8_t runs) {
     scaledInteger sum;
 
-    if (runs >= 6) { return sum; }
-    /* if (number1.number == number2.number && number1.scaleAsExponent == number2.scaleAsExponent) { return SCALEDINT(0, 1) }; */
+    if (runs >= 6) { return SCALEDINT(0, 0); }
+    /* printf("Division runs: %d\n", runs); */
 
     if (number1.scaleAsExponent > number2.scaleAsExponent) {
         number2.number *= exponentAsInt(10, (number1.scaleAsExponent - number2.scaleAsExponent));
@@ -168,16 +171,24 @@ scaledInteger divide(scaledInteger number1, scaledInteger number2, uint8_t runs)
         number1.number *= exponentAsInt(10, (number2.scaleAsExponent - number1.scaleAsExponent) );
         number1.scaleAsExponent = number2.scaleAsExponent;
     }
-    printf("%ld / %ld = %ld, %ld mod %ld = %ld\n", number1.number, number2.number, number1.number / number2.number, number1.number, number2.number, number1.number % number2.number);
+    /* printf("%ld / %ld = %ld, %ld mod %ld = %ld\n", number1.number, number2.number, number1.number / number2.number, number1.number, number2.number, number1.number % number2.number); */
 
     sum.number = number1.number / number2.number;
-    if (number1.number % number2.number != 0) {
-        sum.number += divide(SCALEDINT(number1.scaleAsExponent + 1, number1.number % number2.number),
-                             SCALEDINT(0, number2.number), runs + 1).number;
-    }
-
-    printf("HII: %ld, %d, %d\n", sum.number, number1.scaleAsExponent, number2.scaleAsExponent);
     sum.scaleAsExponent = number1.scaleAsExponent - number2.scaleAsExponent;
+    
+    scaledInteger test;
+
+    if (number1.number % number2.number != 0) {
+        test = divide(  SCALEDINT(number1.scaleAsExponent, (number1.number % number2.number) * 10 ),
+                        SCALEDINT(number1.scaleAsExponent, number2.number ), runs + 1 );
+        test.scaleAsExponent += 1;
+        sum = addition(sum, test);
+        /* printf("Test, sum:\n"); */
+        /* printScaledInteger(test); */
+        /* printf(", "); */
+        /* printScaledInteger(sum); */
+        /* printf("\n"); */
+    }
 
     return sum;
 }
@@ -277,14 +288,14 @@ scaledInteger exponentExp(scaledInteger number, int power) {
     if (power == 0) { return SCALEDINT(0,1); }
     else if (power < 0) {
         returnVal = divide( SCALEDINT(0, 1), exponentExp(number, power * -1), 1 );
-        printMyFloat(returnVal);
+        /* printScaledInteger(returnVal); */
     }
 
     for (int i = 0; i < power - 1; i++) {
         returnVal = multiply(returnVal, number);
-        printf("%d: ", i);
-        printMyFloat(returnVal);
-        printf("\n");
+        /* printf("%d: ", i); */
+        /* printScaledInteger(returnVal); */
+        /* printf("\n"); */
     }
 
     return returnVal;
@@ -386,16 +397,16 @@ int main(void) {
     float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
 
     /* addition(buildFloat(1, 327), buildFloat(2, 32)); */
-    /* printMyFloat( subtraction( (scaledInteger){0, 67}, addition( (scaledInteger){1, 327}, (scaledInteger){0, 32} ) )); */
-    /* printMyFloat( multiply( (scaledInteger){1, 5}, (scaledInteger){0, 2} ) ); */
+    /* printScaledInteger( subtraction( (scaledInteger){0, 67}, addition( (scaledInteger){1, 327}, (scaledInteger){0, 32} ) )); */
+    /* printScaledInteger( multiply( (scaledInteger){1, 5}, (scaledInteger){0, 2} ) ); */
     /* printf("\n"); */
-    /* printMyFloat( divide( (scaledInteger){0, 5}, (scaledInteger){1, 2} ) ); */
+    /* printScaledInteger( divide( (scaledInteger){0, 5}, (scaledInteger){1, 2} ) ); */
     /* printf("\n"); */
-    printMyFloat( exponentExp(SCALEDINT(2, 3), 2) );
+    printScaledInteger( exponentExp(SCALEDINT(2, 3), 2) );
     printf("\n");
-    printMyFloat(multiply( SCALEDINT(1, 3), SCALEDINT(2, 4) ) );
+    printScaledInteger(multiply( SCALEDINT(1, 3), SCALEDINT(2, 4) ) );
     printf("\n");
-    printMyFloat( divide( SCALEDINT(3, 4), SCALEDINT(4, 3), 1) );
+    printScaledInteger( divide( SCALEDINT(3, 4), SCALEDINT(4, 3), 1) );
     printf("\n");
 
     printf("Estimated sine, cosine and tangent of %f: %f, %f, %f\r\n" 
