@@ -2,9 +2,9 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdio.h>
+#include <util/setbaud.h>
 
 #include "headers/portpins.h"
-#include "headers/USART.h"
 #include "headers/pinDefines.h"
 
 #define SCALEDINT(scale, number) ( (scaledInteger){scale, number} )
@@ -33,14 +33,20 @@ float calculatePercent(float numerator, float denominator);
 float radical(float radicand, int index, int accuracy);
 float CORDIC(float alpha, float* sin, float* cos);
 
+void initialiseUART(void) {
+    UBRR0H = UBRRH_VALUE;
+    UBRR0L = UBRRL_VALUE;
+
+    UCSR0B = (1 << TXEN0);
+    UCSR0C |= ( (1 << UCSZ01) | (1 << UCSZ00) );
+}
 
 int uart_put_char(char c, FILE *stream) { 
 	if (c == '\n') uart_put_char('\r', stream);
-   	loop_until_bit_is_set(UCSR0A, UDRE0); // wait for UDR to be clear 
+   	loop_until_bit_is_set(UCSR0A, UDRE0);
    	UDR0 = c;
     return 0; 
 }
-
 
 void separateFloatComponents(scaledInteger input, uint32_t* integer, uint32_t* decimal) {
     *integer = input.number / exponentAsInt(10, input.scaleAsExponent);
@@ -384,7 +390,7 @@ float CORDIC(float alpha, float* sin, float* cos) {
 }
 
 int main(void) {
-    initUSART();
+    initialiseUART();
 
     FILE mystdout = FDEV_SETUP_STREAM(uart_put_char, NULL, _FDEV_SETUP_WRITE);
     stdout = &mystdout;
@@ -395,7 +401,7 @@ int main(void) {
     float tangent = CORDIC(1.3, &cosine, &sine);
 
     float test[7] = {2.0, 2.6, 2.67, 2.674, 2.6747, 2.67476, 0.267476};
-
+    
     /* addition(buildFloat(1, 327), buildFloat(2, 32)); */
     /* printScaledInteger( subtraction( (scaledInteger){0, 67}, addition( (scaledInteger){1, 327}, (scaledInteger){0, 32} ) )); */
     /* printScaledInteger( multiply( (scaledInteger){1, 5}, (scaledInteger){0, 2} ) ); */

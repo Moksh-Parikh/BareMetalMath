@@ -5,7 +5,7 @@
 ##########------------------------------------------------------##########
 
 MCU   = atmega328p
-F_CPU = 1600000UL  
+F_CPU = 16000000UL  
 BAUD  = 9600UL
 ## Also try BAUD = 19200 or 38400 if you're feeling lucky.
 
@@ -22,7 +22,7 @@ LIBDIR = headers
 
 PROGRAMMER_TYPE = arduino
 # extra arguments to avrdude: baud rate, chip type, -F flag, etc.
-PROGRAMMER_ARGS = -P COM3
+PROGRAMMER_ARGS = -P /dev/ttyACM0
 
 ##########------------------------------------------------------##########
 ##########                  Program Locations                   ##########
